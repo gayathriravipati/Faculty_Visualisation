@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <script>
+            let dataPositions = JSON.parse(localStorage.getItem("dataPositions")) || [];
+            let interestPositions = JSON.parse(localStorage.getItem("interestPositions")) || [];
+            const gridSize = 20;
+            const circleRadius = 20;
+            const lineColors = d3.scaleOrdinal(d3.schemeCategory10); 
+            const relationships = [
+            {'dataPoint': 'Brent Ruben', 'interests': ['assessment']},      
+            {'dataPoint': 'Brian Householder', 'interests': ['assessment']},     
+            {'dataPoint': 'Galina Bolden', 'interests': ['health', 'family']},
+            {'dataPoint': 'Itzhak Yanovitzky', 'interests': ['community engagement']},
+            {'dataPoint': 'Jeff Lane', 'interests': ['inequality', 'community']},
+            {'dataPoint': 'Jen Theiss', 'interests': ['family', 'resilience']},
+            {'dataPoint': 'Katherine Ognyanova', 'interests': ['networks', 'media', 'technology', 'political communication']},
+            {'dataPoint': 'Kristina Scharp', 'interests': ['resilience']},
+            {'dataPoint': 'Maria Venetis', 'interests': ['resilience']},
+            {'dataPoint': 'Mark Beal', 'interests': ['social media']},
+            {'dataPoint': 'Marya Doerfel', 'interests': ['resilience']},
+            {'dataPoint': 'Matthew Matsaganis', 'interests': ['community', 'resilience', 'media']},
+            {'dataPoint': 'Matthew Weber', 'interests': ['networks', 'media', 'technology', 'community']},
+            {'dataPoint': 'Nick Linardopoulos', 'interests': ['political communication', 'technology']},
+            {'dataPoint': 'Sarah Shugars', 'interests': ['social media', 'technology', 'political communication']},
+            {'dataPoint': 'Sophia Fu', 'interests': ['technology', 'networks']},
+            {'dataPoint': 'Yoni Rivera', 'interests': ['health', 'social media', 'community engagement', 'inequality']} 
+            ];
+            const width = 600;
+            const height = 600;
+            const radius = Math.min(width, height) / 2 - 50;
+
+            // Select the body element and append an SVG element
+            const svg = d3.select("body div").append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .append("g")
+                .attr("transform", `translate(${width / 2},${height / 2})`);
+
+            const data = [
+             "Brent Ruben", "Brian Householder",  "Galina Bolden", "Itzhak Yanovitzky", "Jeff Lane", "Jen Theiss",
+             "Kristina Scharp",  "Katherine Ognyanova", "Mark Beal",  "Marya Doerfel",  "Maria Venetis", "Matthew Matsaganis", "Matthew Weber",
+            "Nick Linardopoulos", "Sarah Shugars",
+             "Sophia Fu", "Yoni Rivera"
+            ];
+
+            const interestsSet = [
+                'assessment',
+                'health',
+                'family',
+                'community engagement',
+                'inequality',
+                'community',
+                'resilience',
+                'networks',
+                'media',
+                'technology',
+                'political communication',
+                'social media',
+            ];
+
+            // Create a circular layout for data
+            const dataNodes = data.map((name, index) => {
+                const angle = (index / data.length) * 2 * Math.PI;
+                return {
+                    name: name,
+                    x: radius * Math.cos(angle),
+                    y: radius * Math.sin(angle)
+                };
+            });
+
+            // Create nodes with text and bullets for data
+            const dataNodeElements = svg.selectAll(".data-node")
+                .data(dataNodes)
+                .enter().append("g")
+                .attr("class", "data-node")
+                .on("click", function () {
+                    d3.select(this).select("text")
+                        .style("font-size", "16px"); // Increase font size when clicked
+                })
+                .on("mouseover", function () {
+                    d3.select(this).select("text").style("font-size", "16px"); // Increase font size on hover
+                })
+                .on("mouseout", function () {
+                    d3.select(this).select("text").style("font-size", "12px"); // Restore font size on mouseout
+                });
+
+            dataNodeElements.append("circle")
+                .attr("r", 20) // Set the circle radius for the datapoint
+                .style("fill", "#68ECFD");
+
+            dataNodeElements.append("text")
+                .attr("dy", ".35em")
+                .text(d => d.name)
+                .style("text-anchor", "middle")
+                .style("font-size", "12px");
+
+            // Position the data nodes
+            dataNodeElements.attr("transform", d => `translate(${d.x},${d.y})`);
+
+            // Create a circular layout for interests
+            const interestsNodes = interestsSet.map(interest => {
+                let savedPosition = interestPositions.find(entry => entry.name === interest);
+                if (!savedPosition) {
+                    savedPosition = {
+                        name: interest,
+                        x: Math.random() * (radius - 50) - (radius - 50) / 2,
+                        y: Math.random() * (radius - 50) - (radius - 50) / 2,
+                    };
+                    interestPositions.push(savedPosition); // Store the new positions after the change in the data elements
+                    localStorage.setItem("interestPositions", JSON.stringify(interestPositions));
+                }
+                return savedPosition;
+            });
+
+            // Create nodes with text and bullets for interests
+            const interestElements = svg.selectAll(".interest")
+                .data(interestsNodes)
+                .enter().append("g")
+                .attr("class", "interest")
+                .attr("transform", d => `translate(${d.x},${d.y})`)
+                .call(d3.drag() // Enable dragging for the elements
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+
+            // Append text (interest name) first
+            interestElements.append("text")
+                .attr("dy", "-10") 
+                .text(d => d.name)
+                .style("text-anchor", "middle")
+                .style("font-size", "12px");
+
+            // Append circle (bullet) below the text
+            interestElements.append("circle")
+                .attr("r", 3) // Set the circle radius for bullets
+                .style("fill", "#FD7968"); // Set the fill color of the bullet
+
+            function dragstarted(event, d) {
+                d3.select(this).classed("active", true);
+            }
+
+            function dragged(event, d) {
+                d.x = event.x;
+                d.y = event.y;
+                d3.select(this).attr("transform", `translate(${d.x},${d.y})`);
+                updateLines(d); // Update lines connected to the dragged interest
+            }
+
+            function dragended(event, d) {
+                d3.select(this).classed("active", false);
+
+                // Quantize the new position to the grid
+                const quantizedX = gridSize * Math.round(event.x / gridSize);
+                const quantizedY = gridSize * Math.round(event.y / gridSize);
+
+                // Save the new position to the appropriate array
+                const newPosition = {
+                    name: d.name,
+                    x: quantizedX,
+                    y: quantizedY
+                };
+
+                const existingEntryIndex = interestPositions.findIndex(entry => entry.name === d.name);
+                if (existingEntryIndex >= 0) {
+                    interestPositions[existingEntryIndex] = newPosition;
+                } else {
+                    interestPositions.push(newPosition);
+                }
+                localStorage.setItem("interestPositions", JSON.stringify(interestPositions));
+
+                // Update the elements with quantized position
+                d3.select(this).attr("transform", `translate(${quantizedX},${quantizedY})`);
+            }
+
+            // Create lines between data points and interests
+            relationships.forEach(relationship => {
+                const dataPoint = dataNodeElements.filter(d => d.name === relationship.dataPoint);
+                relationship.interests.forEach(interest => {
+                    const targetInterest = interestElements.filter(d => d.name === interest);
+                    createLine(dataPoint, targetInterest);
+                });
+            });
+
+            function createLine(source, target) {
+            // Get the data associated with the source and target elements
+            const sourceData = source.datum();
+            const targetData = target.datum();
+            const sourceAngle = (data.indexOf(sourceData.name) / data.length) * 2 * Math.PI;
+
+            // Calculate the starting point for the line based on the radius and angle of the source data point
+            const dataPointRadius = 20; // Radius of the data point circle
+            const sourceX = (radius - circleRadius) * Math.cos(sourceAngle);
+            const sourceY = (radius - circleRadius) * Math.sin(sourceAngle);
+
+            // Calculate the ending point for the line based on the position of the target element
+            const targetX = +target.attr("transform").split("(")[1].split(",")[0];
+            const targetY = +target.attr("transform").split(",")[1].split(")")[0];
+
+            // Create the line
+            svg.append("line")
+                .datum({source: source.datum(), target: target.datum()})
+                .attr("x1", sourceX)
+                .attr("y1", sourceY)
+                .attr("x2", targetData.x)
+                .attr("y2", targetData.y)
+                .style("stroke", lineColors(sourceData.name)); // Assign the color based on the data point's name
+            }
+            dataNodeElements.selectAll("circle")
+                .attr("r", circleRadius); // Update circle radius here
+
+
+            function updateLines(interest) {
+                // Select all lines and update their positions based on the dragged interest
+                svg.selectAll("line").each(function() {
+                    const line = d3.select(this);
+                    const lineData = line.datum();
+
+                    if (lineData.target.name === interest.name) {
+                        line.attr("x2", interest.x)
+                            .attr("y2", interest.y);
+                    }
+                });
+            }
+
+            const interestClickAreas = interestElements.append("circle")
+                .attr("r", 15) // Adjust the radius as needed
+                .style("fill", "transparent") // Make the click area transparent
+
+            // Add an event listener to the custom click areas for highlighting connected nodes
+            interestClickAreas.on("click", function () {
+                const interestName = d3.select(this.parentNode).datum().name;
+                const dataPointElements = dataNodeElements.filter(d => {
+                    return relationships.some(relationship => relationship.dataPoint === d.name && relationship.interests.includes(interestName));
+                });
+                const isHighlighted = dataPointElements.select("circle").style("fill") === "orange";
+                // Remove the highlight from all nodes
+                dataNodeElements.selectAll("text").style("font-size", "12px");
+                dataNodeElements.selectAll("circle").style("fill", "lightblue");
+                if (!isHighlighted) {
+                    // Highlight the connected nodes
+                    dataPointElements.select("text").style("font-size", "16px"); // Increase font size
+                    dataPointElements.select("circle").style("fill", "orange"); // Change fill color
+                }
+            });  
+            
+            // Initialize a variable to keep track of the last clicked data node
+            let lastClickedDataNode = null;
+
+// Click event for data nodes
+dataNodeElements.selectAll("circle") // Selecting the interaction circles
+    .on("click", function (event, d) {
+        // Check if the clicked node is the same as the last clicked node
+        const isSameNodeClicked = lastClickedDataNode === d.name;
+        
+        // Reset highlights for all nodes
+        dataNodeElements.selectAll("circle").style("fill", "lightblue");
+        dataNodeElements.selectAll("text").style("font-size", "12px");
+        interestElements.selectAll("circle").style("fill", "transparent");
+        interestElements.selectAll("text").style("font-size", "12px");
+
+        if (!isSameNodeClicked) {
+            // Update the last clicked data node
+            lastClickedDataNode = d.name;
+
+            // Highlight the clicked data node
+            d3.select(this).style("fill", "#FD7968");
+            d3.select(this.parentNode).select("text").style("font-size", "16px");
+
+            // Find and highlight related interest nodes
+            const relatedInterests = relationships.find(relationship => relationship.dataPoint === d.name);
+
+            if (relatedInterests) {
+                const interestsToHighlight = relatedInterests.interests;
+                interestElements.each(function (interestData) {
+                    if (interestsToHighlight.includes(interestData.name)) {
+                        d3.select(this).select("circle").style("fill", "#FD7968");
+                        d3.select(this).select("text").style("font-size", "16px");
+                    }
+                });
+            }
+        } else {
+            // If the same node is clicked again, reset last clicked data node
+            lastClickedDataNode = null;
+        }
+    });         
+                // Find the interests related to the clicked data point
+                const relatedInterests = relationships.find(relationship => relationship.dataPoint === dataPointName);
+                
+                if (relatedInterests) {
+                    // Extract the list of related interests
+                    const interestsToHighlight = relatedInterests.interests;
+                    
+                    // Loop through interest elements and highlight the related ones
+                    interestElements.each(function (interestData) {
+                        const interestName = interestData.name;
+                        // Check if the interest is related to the clicked data point
+                        if (interestsToHighlight.includes(interestName)) {
+                            // Highlight the related interest (change its style)
+                            d3.select(this).select("text").style("font-size", "16px");
+                            d3.select(this).select("circle").style("fill", "#FD7968");
+                        }
+                    });
+                }
+                // Prevent the click event from propagating to the interest elements
+                event.stopPropagation();
+
+            function updatePositions(newWidth, newHeight) {
+                width = newWidth;
+                height = newHeight;
+                radius = Math.min(width, height) / 2 - 50;
+
+                svg.attr("width", width)
+                   .attr("height", height)
+                   .select("g")
+                   .attr("transform", `translate(${width / 2},${height / 2})`);
+
+                // Update data nodes
+                const updatedDataNodes = data.map((name, index) => {
+                    const angle = (index / data.length) * 2 * Math.PI;
+                    return {
+                        name: name,
+                        x: radius * Math.cos(angle),
+                        y: radius * Math.sin(angle)
+                    };
+                });
+
+                interestElements.data(updatedInterestNodes)
+                    .attr("transform", d => `translate(${d.x},${d.y})`);
+
+
+                dataNodeElements.data(updatedDataNodes)
+                    .attr("transform", d => `translate(${d.x},${d.y})`);
+
+                // Update lines
+                svg.selectAll("line").each(function() {
+                    const line = d3.select(this);
+                    const lineData = line.datum();
+
+                    const sourceAngle = (data.indexOf(lineData.source.name) / data.length) * 2 * Math.PI;
+                    const sourceX = (radius - circleRadius) * Math.cos(sourceAngle);
+                    const sourceY = (radius - circleRadius) * Math.sin(sourceAngle);
+
+                    line.attr("x1", sourceX)
+                        .attr("y1", sourceY);
+                });
+            }
+        </script>
+    </div>
+</body>
+</html>
